@@ -106,66 +106,62 @@ class ContentSynthesizer:
         return content.strip()
     
     def _create_synthesis_prompt(
-                                self, 
-                                query: str, 
-                                analysis: QueryAnalysis, 
-                                sources: List[Dict[str, Any]]
-                            ) -> str:
+        self, 
+        query: str, 
+        analysis: QueryAnalysis, 
+        sources: List[Dict[str, Any]]
+    ) -> str:
         """Create perfect Perplexity-style synthesis prompt"""
         
         # Build sources context
         sources_text = ""
         for source in sources:
             sources_text += f"""
-            Source [{source['id']}]: {source['title']}
-            URL: {source['url']}
-            Content: {source['content']}
-            
-            ---
-            """
-                    
-            prompt = f"""You are Perplexity, a helpful search assistant trained by Perplexity AI.
-            
-            Write an accurate, detailed, and comprehensive response to the user's query using the provided search results.
-            
-            **User Query**: "{query}"
-            **Query Analysis**:
-            - Type: {analysis.query_type}
-            - Intent: {analysis.search_intent}
-            - Complexity: {analysis.complexity_score}/10
-            **Available Sources**:
-            {sources_text}
-            
-            **FORMATTING REQUIREMENTS**:
-            - Use ## for main topics (e.g., ## What is Machine Learning)
-            - Use ### for subtopics (e.g., ### Types of Machine Learning)
-            - Use **bold** for key terms, concepts, and important phrases
-            - Use bullet points (-) for lists and explanations
-            - Use numbered lists (1.) for steps or processes
-            - Cite sources using [1], [2], etc. at the end of sentences
-            - Provide detailed explanations under each section
-            
-            **CONTENT STRUCTURE**:
-            - Start with a direct answer in the first paragraph
-            - Organize into clear topics with ## headers
-            - Break down complex topics into ### subtopics
-            - Use bullet points to list features, benefits, examples, or components
-            - Include detailed explanations after each list
-            - Bold important terms throughout the text
-            
-            **TABLE USAGE RULES**:
-            - You must never use tables to present information. Do not use Markdown tables, HTML tables, ASCII tables, or any other tabular format.
-            
-            **WRITING STYLE**:
-            - Professional, informative tone
-            - Comprehensive coverage of the topic
-            - Clear organization with logical flow
-            - Detailed explanations that educate the reader
-            - Natural integration of citations
-            
-            Write a well-structured, comprehensive response:"""
-                
+    Source [{source['id']}]: {source['title']}
+    URL: {source['url']}
+    Content: {source['content']}
+
+    ---
+    """
+        
+        prompt = f"""You are Perplexity, a helpful search assistant trained by Perplexity AI.
+
+    Write an accurate, detailed, and comprehensive response to the user's query using the provided search results.
+
+    **User Query**: "{query}"
+
+    **Available Sources**:
+    {sources_text}
+
+    **CRITICAL CITATION RULES - READ CAREFULLY**:
+    1. You MUST use ONLY square brackets with numbers: [1], [2], [3]
+    2. NEVER use 【】 brackets (Chinese/Japanese style)
+    3. NEVER use † symbols or other decorations
+    4. Place citations at the END of sentences
+    5. Every factual claim MUST have a citation
+
+    **CORRECT CITATION EXAMPLES**:
+    ✓ "AI can improve healthcare outcomes [1]."
+    ✓ "Studies show AI boosts productivity [2]."
+    ✓ "Climate models benefit from AI analysis [1][3]."
+
+    **INCORRECT CITATION EXAMPLES** (DO NOT USE):
+    ✗ "AI can improve healthcare 【1】"
+    ✗ "Studies show AI boosts productivity [1†L5-L8]"
+    ✗ "Climate models benefit from AI 【1†source】"
+
+    **FORMATTING REQUIREMENTS**:
+    - Use ## for main topics
+    - Use ### for subtopics  
+    - Use **bold** for key terms
+    - Use bullet points (-) for lists
+    - Use numbered lists (1.) for steps
+    - Cite sources using [1], [2], [3] format ONLY
+
+    Write a comprehensive, well-cited response using ONLY [number] citation format:"""
+        
         return prompt
+
     
     async def _generate_with_groq(self, prompt: str) -> str:
         """Generate response using Groq LLM"""
@@ -188,7 +184,7 @@ class ContentSynthesizer:
             return response.choices[0].message.content.strip()
             
         except Exception as e:
-            logger.error(f"❌ Groq generation failed: {e}")
+            logger.error(f"Groq generation failed: {e}")
             raise
     
     def _process_synthesized_response(
@@ -199,9 +195,20 @@ class ContentSynthesizer:
     ) -> SynthesizedResponse:
         """Process and validate synthesized response"""
         
-        # Extract citations from content
-        citation_pattern = r'\[(\d+)\]'  # Looking for [1], [2], [3]
-        citations_used = set(re.findall(citation_pattern, content))
+        # Extract citations from content - handle multiple bracket formats
+        citation_patterns = [
+            r'\[(\d+)\]',           # Standard: [1]
+            r'【(\d+)】',            # CJK brackets: 【1】
+            r'\[(\d+)†[^\]]*\]',    # With metadata: [1†source]
+            r'【(\d+)†[^】]*】'       # CJK with metadata: 【1†source】
+        ]
+        
+        citations_used = set()
+        for pattern in citation_patterns:
+            found = re.findall(pattern, content)
+            citations_used.update(found)
+        
+        logger.info(f"Found {len(citations_used)} citations: {citations_used}")
         
         # Create source mapping for citations
         cited_sources = []
@@ -217,6 +224,8 @@ class ContentSynthesizer:
         word_count = len(content.split())
         citation_count = len(citations_used)
         
+        logger.info(f"Processed {len(cited_sources)} cited sources from {citation_count} citations")
+        
         return SynthesizedResponse(
             query=query,
             response=content,
@@ -228,6 +237,7 @@ class ContentSynthesizer:
                 content, citation_count, word_count
             )
         )
+
     
     def _calculate_quality_score(self, content: str, citations: int, words: int) -> float:
         """Calculate quality score for the synthesized response"""
@@ -276,7 +286,6 @@ class ContentSynthesizer:
             citation_count=0,
             synthesis_quality_score=0.1
         )
-
 
 
 

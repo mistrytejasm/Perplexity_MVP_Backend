@@ -65,5 +65,41 @@ class DocumentUploadRequest(BaseModel):
 
 class DocumentUploadResponse(BaseModel):
     document_id: str
+    filename: str
+    status: str # completed or failed
+    message: str
+    total_chunks: Optional[int] = None
+    processing_time: Optional[float] = None
 
+class SessionDocument(BaseModel):
+    document_id: str
+    filename: str
+    upload_time: str
+    total_chunks: int
+    file_size: int
+
+class DocumentSearchRequest(BaseModel):
+    query: str
+    session_id: str
+    max_results: int = 5
+
+class DocumentSearchResult(BaseModel):
+    content: str
+    page_number: str
+    similarity_score: float
+    document_filename: str
+    document_id: str
+    
+class DocumentChunk(BaseModel):
+    chunk_id: str
+    document_id: str
+    content: str
+    page_number: int
+    chunk_index: int
+    token_count: int
+
+class ExtractedContent(BaseModel):
+    text: str
+    total_page: int
+    extraction_method: str
 
