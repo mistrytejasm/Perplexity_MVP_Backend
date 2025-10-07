@@ -6,6 +6,9 @@ from services.tavily_service import TavilyService
 import uvicorn
 from logger_config import setup_logging, get_logger
 from typing import List
+from dotenv import load_dotenv
+
+load_dotenv()
 
 setup_logging()
 logger = get_logger(__name__)
