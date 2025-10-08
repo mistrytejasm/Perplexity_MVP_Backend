@@ -1,0 +1,12 @@
+pydantic-settings
+python-dotenv
+fastapi[standard]
+uvicorn
+httpx
+langchain-community
+groq
+tiktoken
+PyMuPDF
+chromadb
+sentence-transformers
+torch
